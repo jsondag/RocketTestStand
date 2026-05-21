@@ -81,15 +81,36 @@ WiFi network configuration is entered through the touchscreen WiFi settings page
 
 ## Operation
 
-1. Build and flash using PlatformIO
-2. Insert an SD card and verify it initializes
-3. Optionally connect the DS3231 and use the touchscreen settings menu to enable RTC or sync RTC time via WiFi/NTP
-4. Use the touchscreen interface to:
+### Build and flash
+
+1. Install PlatformIO in VS Code or the PlatformIO CLI.
+2. Open this project folder in VS Code.
+3. Confirm `platformio.ini` is set for `board = esp32dev`.
+4. Connect the CYD board via USB.
+5. In PlatformIO, use `Build` to compile the project.
+6. Use `Upload` to flash the firmware to the CYD board.
+
+If you prefer the command line, from the project root run:
+
+```bash
+platformio run
+platformio run -t upload
+```
+
+If your CYD board uses a different serial port or board ID, update `platformio.ini` accordingly before flashing.
+
+### First startup
+
+1. Insert an SD card and power on the board.
+2. Verify the SD card initializes and the touchscreen displays the home menu.
+3. Optionally connect the DS3231 RTC and enable it in Settings.
+4. Use the touchscreen Settings menu to connect to WiFi and sync NTP time.
+5. Use the touchscreen interface to:
    - view a scale
    - tare the load cell
    - calibrate with a known mass and on-screen number keyboard
    - start thrust capture
-   - load previously saved `.eng` files
+   - browse stored `.eng` files and review thrust curves
 
 ## File Format
 

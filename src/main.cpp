@@ -343,7 +343,7 @@ void drawHomeScreen() {
   drawHamburger();
   drawButton(16, 40, 140, 80, "Scale");
   drawButton(164, 40, 140, 80, "Capture");
-  drawButton(16, 136, 140, 80, "Review");
+  drawButton(16, 136, 140, 80, "Browse");
   drawButton(164, 136, 140, 80, "Settings");
   drawFooter("Tap a button or open menu.");
 }
@@ -491,7 +491,7 @@ void drawCalibrationScreen(float measuredMass) {
 }
 
 void drawLoadFilesScreen() {
-  drawHeader("Saved Curves");
+  drawHeader("File Browser");
   drawHamburger();
   for (int i = 0; i < 4; i++) {
     int idx = savedFileScroll + i;
@@ -499,9 +499,23 @@ void drawLoadFilesScreen() {
     if (idx >= savedFileCount) break;
     drawSmallButton(16, y, 288, 38, savedFileList[idx], ILI9341_DARKGREY);
   }
-  drawSmallButton(16, 220, 140, 20, "Refresh");
-  drawSmallButton(164, 220, 140, 20, "Home", ILI9341_RED);
-  drawFooter("Tap file to review.");
+  if (savedFileCount == 0) {
+    drawTextBlock(16, 60, 280, 100, "No .eng files found.");
+  }
+  int totalPages = max(1, (savedFileCount + 3) / 4);
+  int currentPage = (savedFileScroll / 4) + 1;
+  tft.setTextColor(ILI9341_CYAN);
+  tft.setTextSize(1);
+  tft.setCursor(16, 200);
+  tft.print("Page ");
+  tft.print(currentPage);
+  tft.print("/");
+  tft.print(totalPages);
+  drawSmallButton(16, 220, 68, 20, "Up");
+  drawSmallButton(90, 220, 68, 20, "Down");
+  drawSmallButton(164, 220, 68, 20, "Refresh");
+  drawSmallButton(238, 220, 68, 20, "Home", ILI9341_RED);
+  drawFooter("Tap a file to open it.");
 }
 
 void drawMessage(const String& message) {
@@ -527,6 +541,7 @@ void scanWifiNetworks() {
 
 void refreshSavedFileList() {
   savedFileCount = 0;
+  savedFileScroll = 0;
   if (!sdPresent) return;
   File root = SD.open("/");
   if (!root) return;
@@ -900,10 +915,20 @@ void loop() {
         }
         break;
       case SCREEN_LOAD_FILE:
-        if (hitTest(touch, 16, 220, 140, 20)) {
+        if (hitTest(touch, 16, 220, 68, 20)) {
+          if (savedFileScroll >= 4) {
+            savedFileScroll -= 4;
+          }
+          drawLoadFilesScreen();
+        } else if (hitTest(touch, 90, 220, 68, 20)) {
+          if (savedFileScroll + 4 < savedFileCount) {
+            savedFileScroll += 4;
+          }
+          drawLoadFilesScreen();
+        } else if (hitTest(touch, 164, 220, 68, 20)) {
           refreshSavedFileList();
           drawLoadFilesScreen();
-        } else if (hitTest(touch, 164, 220, 140, 20)) {
+        } else if (hitTest(touch, 238, 220, 68, 20)) {
           currentScreen = SCREEN_HOME;
           drawHomeScreen();
         } else {
