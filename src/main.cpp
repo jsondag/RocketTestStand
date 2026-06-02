@@ -44,14 +44,14 @@
 #define TOUCH_MOSI 32
 #define TOUCH_MISO 39
 
-#define I2C_SDA 18
-#define I2C_SCL 19
+#define I2C_SDA 4
+#define I2C_SCL 13
 
 #define NTP_SERVER "pool.ntp.org"
 #define SETTINGS_FILENAME "/settings.ini"
 #define EEPROM_MAGIC 0x52415350
 #define EEPROM_SIZE 1024
-#define DEFAULT_CAL_FACTOR -50230.0f
+#define DEFAULT_CAL_FACTOR -54137.0f
 #define MIN_REASONABLE_CAL_FACTOR_ABS_HX711 50000.0f
 #define MIN_REASONABLE_CAL_FACTOR_ABS_ADS1220 100.0f
 #define CAPTURE_MAX_SAMPLES 4800
@@ -94,8 +94,6 @@ struct AppSettings {
   char wifiSsid[32];
   char wifiPassword[64];
   float calibrationFactor;
-  uint8_t scaleBackend;
-  bool rtcEnabled;
   uint8_t rotate180;
   float startThreshold;
   uint16_t preCaptureMs;
@@ -139,14 +137,14 @@ enum ScreenMode {
   SCREEN_PARAMETERS,
   SCREEN_WIFI_SCAN,
   SCREEN_WIFI_PASSWORD,
-  SCREEN_CALIBRATION,
-  SCREEN_RTC
+  SCREEN_CALIBRATION
 };
 
 AppSettings settings;
 uint8_t activeScaleBackend = SCALE_BACKEND_AUTO;
 bool sdPresent = false;
 bool rtcAvailable = false;
+SPIClass spiSD(HSPI);  // Separate SPI bus for SD card on hardwired pins
 ScreenMode currentScreen = SCREEN_HOME;
 
 Sample samples[CAPTURE_MAX_SAMPLES];
@@ -890,8 +888,6 @@ void resetDefaultSettings() {
   strcpy(settings.wifiPassword, "");
   // CYD + HX711 + 1 kg class load cells are typically around 180k..260k counts/kg.
   settings.calibrationFactor = DEFAULT_CAL_FACTOR;
-  settings.scaleBackend = SCALE_BACKEND_AUTO;
-  settings.rtcEnabled = true;
   settings.rotate180 = 0;
   settings.startThreshold = 0.5f;
   settings.preCaptureMs = 500;
@@ -918,8 +914,6 @@ bool saveSettingsToSD() {
   file.printf("ssid=%s\n", settings.wifiSsid);
   file.printf("password=%s\n", settings.wifiPassword);
   file.printf("calibrationFactor=%.6f\n", settings.calibrationFactor);
-  file.printf("scaleBackend=%u\n", settings.scaleBackend);
-  file.printf("rtcEnabled=%d\n", settings.rtcEnabled ? 1 : 0);
   file.printf("rotate180=%u\n", settings.rotate180);
   file.printf("startThreshold=%.3f\n", settings.startThreshold);
   file.printf("preCaptureMs=%u\n", settings.preCaptureMs);
@@ -963,10 +957,6 @@ bool loadSettingsFromSD() {
       value.toCharArray(settings.wifiPassword, sizeof(settings.wifiPassword));
     } else if (key == "calibrationFactor") {
       settings.calibrationFactor = value.toFloat();
-    } else if (key == "scaleBackend") {
-      settings.scaleBackend = (uint8_t)constrain(value.toInt(), 0, 2);
-    } else if (key == "rtcEnabled") {
-      settings.rtcEnabled = value.toInt() != 0;
     } else if (key == "rotate180") {
       settings.rotate180 = (uint8_t)constrain(value.toInt(), 0, 1);
     } else if (key == "startThreshold") {
@@ -1016,9 +1006,6 @@ bool loadSettings() {
   }
   if (settings.rotate180 > 1) {
     settings.rotate180 = 0;
-  }
-  if (settings.scaleBackend > SCALE_BACKEND_ADS1220) {
-    settings.scaleBackend = SCALE_BACKEND_AUTO;
   }
   if (!isfinite(settings.ejectionWaitSeconds) || settings.ejectionWaitSeconds < 0.5f || settings.ejectionWaitSeconds > 15.0f) {
     settings.ejectionWaitSeconds = 10.0f;
@@ -1678,25 +1665,6 @@ void drawWifiScanScreen() {
   drawFooter("Tap SSID to connect.");
 }
 
-void drawRtcScreen() {
-  drawHeader("RTC Settings");
-  drawHamburger();
-  tft.setTextSize(2);
-  tft.setTextColor(ILI9341_WHITE);
-  tft.setCursor(16, 50);
-  if (rtcAvailable) {
-    tft.print("RTC detected.");
-  } else {
-    tft.print("RTC not found.");
-  }
-  tft.setCursor(16, 90);
-  tft.print("Enabled: ");
-  tft.print(settings.rtcEnabled ? "Yes" : "No");
-  drawSmallButton(16, 140, 140, 44, settings.rtcEnabled ? "Disable" : "Enable");
-  drawSmallButton(164, 140, 140, 44, "Sync NTP");
-  drawFooter("RTC only.");
-}
-
 void drawCalibrationScreen(float measuredMass) {
   drawHeader("Calibration");
   drawHamburger();
@@ -1950,9 +1918,7 @@ bool syncTimeWithNTP() {
   if (!getLocalTime(&timeinfo, 10000)) {
     return false;
   }
-  if (settings.rtcEnabled && rtcAvailable) {
-    rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));
-  }
+  // RTC no longer supported - time sync is NTP only
   return true;
 }
 
@@ -2009,33 +1975,62 @@ void setup() {
   tft.print("Booting...");
   touchBegin();
 
-  sdPresent = SD.begin(SD_CS);
+  // Ensure SD CS pin is HIGH (deselected) before SPI operations
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
+  delay(100);
+
+  Serial.print("Attempting SD.begin(CS=");
+  Serial.print(SD_CS);
+  Serial.println(") on ESP32-2432S028...");
+  
+  // Initialize SD on separate HSPI bus with hardwired pins (SCK=18, MISO=19, MOSI=23)
+  spiSD.begin(18, 19, 23, 5);
+  sdPresent = SD.begin(SD_CS, spiSD, 1000000);
   if (!sdPresent) {
-    Serial.println("SD init failed, using EEPROM fallback.");
+    Serial.println("SD init failed at 1MHz, retrying at default speed...");
+    sdPresent = SD.begin(SD_CS, spiSD);
+  }
+  
+  if (sdPresent) {
+    Serial.println("SD card initialized successfully!");
+  } else {
+    Serial.println("SD card initialization failed. Using EEPROM fallback.");
   }
   EEPROM.begin(EEPROM_SIZE);
   loadSettings();
   displayRotation = settings.rotate180 ? 2 : 1;
   applyRotation(displayRotation);
 
-  Wire.begin(I2C_SDA, I2C_SCL);
-  rtcAvailable = rtc.begin();
-
+  // RTC not used, skipping I2C initialization
+  
+  Serial.println("Initializing scale...");
+  Serial.flush();
   bool scaleReady = initScale();
+  Serial.println("[DEBUG] initScale completed");
+  Serial.flush();
   if (!scaleReady) {
     statusLine = "Scale ADC not detected";
     drawMessage(statusLine);
     delay(500);
   }
 
+  Serial.println("[DEBUG] Creating sampler mutex...");
+  Serial.flush();
   // create mutex and start sampler task
   samplesMutex = xSemaphoreCreateMutex();
   if (samplesMutex == NULL) {
     Serial.println("Failed to create samples mutex");
   }
+  Serial.println("[DEBUG] Starting sampler task...");
+  Serial.flush();
   xTaskCreatePinnedToCore(samplerTask, "sampler", 4096, NULL, 2, &samplerTaskHandle, 1);
+  Serial.println("[DEBUG] Sampler task created, drawing home screen...");
+  Serial.flush();
 
   drawHomeScreen();
+  Serial.println("[DEBUG] Home screen drawn");
+  Serial.flush();
 }
 
 void runCaptureRoutine() {
@@ -2459,7 +2454,7 @@ void loop() {
     if (hitTest(touch, 0, 0, 28, 24)) {
       if (currentScreen == SCREEN_HOME) {
         // root screen: no-op
-      } else if (currentScreen == SCREEN_WIFI_SCAN || currentScreen == SCREEN_PARAMETERS || currentScreen == SCREEN_RTC || currentScreen == SCREEN_CALIBRATION) {
+      } else if (currentScreen == SCREEN_WIFI_SCAN || currentScreen == SCREEN_PARAMETERS || currentScreen == SCREEN_CALIBRATION) {
         currentScreen = SCREEN_SETTINGS;
         drawSettingsScreen();
       } else {
@@ -2570,8 +2565,8 @@ void loop() {
           weightEntry = "";
           drawCalibrationScreen(0.0f);
         } else if (hitTest(touch, 16, 112, 140, 64)) {
-          currentScreen = SCREEN_RTC;
-          drawRtcScreen();
+          currentScreen = SCREEN_SETTINGS;
+          drawSettingsScreen();
         } else if (hitTest(touch, 164, 112, 140, 64)) {
           currentScreen = SCREEN_PARAMETERS;
           drawParametersScreen();
@@ -2731,24 +2726,6 @@ void loop() {
             drawMessage("Enter a valid weight.");
           }
           // Keep footer messages visible instead of immediately overwriting them.
-        }
-        break;
-      case SCREEN_RTC:
-        if (hitTest(touch, 16, 140, 140, 44)) {
-          if (rtcAvailable) {
-            settings.rtcEnabled = !settings.rtcEnabled;
-            saveSettings();
-            drawRtcScreen();
-          } else {
-            drawMessage("RTC not available.");
-          }
-        } else if (hitTest(touch, 164, 140, 140, 44)) {
-          if (WiFi.status() == WL_CONNECTED) {
-            bool synced = syncTimeWithNTP();
-            drawMessage(synced ? "NTP sync complete." : "NTP sync failed.");
-          } else {
-            drawMessage("Not connected to WiFi.");
-          }
         }
         break;
     }
