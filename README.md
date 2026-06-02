@@ -1,135 +1,105 @@
 # Rocket Test Stand for ESP32 CYD
 
-This project implements a rocket motor test stand on an ESP32 CYD board using a 10 kg load cell, HX711 ADC board, a SPI display, and an SD card. It provides:
+Firmware for an ESP32 CYD-based rocket motor test stand with touchscreen UI, on-device graphing, and .eng export.
 
-- Basic scale mode with tare and calibration
-- Motor thrust capture with auto start/end detection
-- Real-time thrust curve graphing on-screen
-- RASP-style `.eng` file logging to onboard SD card
-- Rocket rating estimate (e.g. `E12-6`) based on impulse and ejection delay
-- Optional DS3231 RTC support
-- Optional WiFi/NTP time sync for RTC and file timestamping
-- File load/review for previously saved thrust curves
+Main features:
+- Scale mode with tare and calibration
+- Thrust capture with auto start/end logic and ejection delay analysis
+- Graph and characterization results after each run
+- SD card logging in .eng-style format
+- Optional DS3231 RTC and WiFi/NTP time sync
+
+## Important ADC Selection Note
+
+ADC model selection is fixed in code (not selectable on device).
+
+In src/main.cpp:
+
+- LOADCELL_ADC = SCALE_BACKEND_HX711
+- or LOADCELL_ADC = SCALE_BACKEND_ADS1220
+
+No auto-detect fallback is used when this is set. The firmware initializes only the selected ADC path.
+
+## Pin Connections
+
+The list below matches current pin definitions in src/main.cpp.
+
+### ADC Option 1: HX711
+
+- HX711_DOUT -> GPIO 22
+- HX711_SCK -> GPIO 27
+- HX711 VCC -> 3.3V
+- HX711 GND -> GND
+
+Load cell wires to HX711 (typical 4-wire cell):
+- Red -> E+
+- Black -> E-
+- Green -> A+ (Signal+)
+- White -> A- (Signal-)
+
+### ADC Option 2: ADS1220 (bit-banged SPI)
+
+- ADS1220_CS -> GPIO 17
+- ADS1220_SCLK -> GPIO 22
+- ADS1220_MOSI -> GPIO 16
+- ADS1220_MISO -> GPIO 35
+- ADS1220_DRDY -> GPIO 27
+- ADS1220 AVDD/DVDD -> 3.3V
+- ADS1220 GND -> GND
+- ADS1220 REFNO -> GND
+- ADS1220 REFPO -> 5V
+
+Load cell wiring for ADS1220 depends on breakout labels, but differential signal should be wired as:
+- Signal+ -> AIN0 (Green)
+- Signal- -> AIN1 (White)
+- Excitation- -> GND (Black)
+- Excitation+ -> 5V (Red)
+
+### CYD TFT (as used by firmware)
+
+- TFT_CS -> GPIO 15
+- TFT_DC -> GPIO 2
+- TFT_RST -> -1 (not connected)
+- TFT_BL -> GPIO 21
+- TFT_MOSI -> GPIO 13
+- TFT_MISO -> GPIO 12
+- TFT_SCLK -> GPIO 14
+
+### SD Card
+
+- SD_CS -> GPIO 5
+- SPI pins are shared with TFT bus in this design
+
+### Touch Controller (bit-banged)
+
+- TOUCH_CS -> GPIO 33
+- TOUCH_IRQ -> GPIO 36
+- TOUCH_CLK -> GPIO 25
+- TOUCH_MOSI -> GPIO 32
+- TOUCH_MISO -> GPIO 39
+
+### Optional RTC (DS3231)
+
+- I2C_SDA -> GPIO 18
+- I2C_SCL -> GPIO 19
+
+## Safety and Wiring Guidance
+
+- Do not wire both ADC modules to the shared control/data pins at the same time unless you have proper hardware isolation.
+- Use only one ADC module connected to the active LOADCELL_ADC selection.
+- Calibrate after changing ADC model, load cell, wiring polarity, or mechanical setup.
+
+## Build and Flash
+
+From project root:
+
+1. platformio run
+2. platformio run -t upload
+
+Default PlatformIO environment is esp32dev.
 
 ## Project Files
 
-- `platformio.ini` - PlatformIO build configuration for ESP32
-- `src/main.cpp` - Main application code
-- `README.md` - Hardware wiring and setup notes
-
-## Hardware Connections
-
-### ESP32 CYD -> HX711
-
-- `HX711_DOUT` -> GPIO 26
-- `HX711_SCK` -> GPIO 25
-- `HX711 VCC` -> 3.3V
-- `HX711 GND` -> GND
-- Load cell wires connect to HX711 input terminals per the HX711 board documentation
-
-### ESP32 CYD -> TFT SPI Display
-
-- `TFT_CS` -> GPIO 15
-- `TFT_DC` -> GPIO 2
-- `TFT_RST` -> GPIO 4
-- `TFT_MOSI` -> GPIO 23
-- `TFT_MISO` -> GPIO 19
-- `TFT_SCLK` -> GPIO 18
-- `TFT_BL` -> optional backlight pin if supported
-- `TFT VCC` -> 3.3V
-- `TFT GND` -> GND
-
-### ESP32 CYD -> SD Card (SPI)
-
-- `SD_CS` -> GPIO 5
-- `SD_SCLK` -> GPIO 18
-- `SD_MISO` -> GPIO 19
-- `SD_MOSI` -> GPIO 23
-- `SD_VCC` -> 3.3V
-- `SD_GND` -> GND
-
-> The display and SD card share the SPI bus. The SD card uses `CS=GPIO 5`, and the display uses `CS=GPIO 15`.
-
-### Optional DS3231 RTC
-
-- `RTC_SDA` -> GPIO 21
-- `RTC_SCL` -> GPIO 22
-- `RTC_VCC` -> 3.3V
-- `RTC_GND` -> GND
-
-### Touchscreen (XPT2046-style)
-
-- `TOUCH_CS` -> GPIO 16
-- `TOUCH_IRQ` -> GPIO 17
-- `TOUCH_VCC` -> 3.3V
-- `TOUCH_GND` -> GND
-
-The touchscreen shares the SPI bus with the display and SD card. The driver reads raw XPT2046 touch coordinates from `TOUCH_CS` and `TOUCH_IRQ`.
-
-## Code Settings
-
-Open `src/main.cpp` to change these values:
-
-- `settings.calibrationFactor` - initial HX711 scale calibration constant
-- `settings.startThreshold` - thrust threshold to begin capture (N)
-- `settings.preCaptureMs` - pre-capture baseline interval (ms)
-- `settings.postCaptureMs` - post-capture hold interval after thrust ends (ms)
-- `settings.waitForEjection` - toggle whether to look for ejection charge delay
-- `settings.rtcEnabled` - whether RTC updates and file timestamping use the DS3231 when available
-
-WiFi network configuration is entered through the touchscreen WiFi settings page.
-
-## Operation
-
-### Build and flash
-
-1. Install PlatformIO in VS Code or the PlatformIO CLI.
-2. Open this project folder in VS Code.
-3. Confirm `platformio.ini` is set for `board = esp32dev`.
-4. Connect the CYD board via USB.
-5. In PlatformIO, use `Build` to compile the project.
-6. Use `Upload` to flash the firmware to the CYD board.
-
-If you prefer the command line, from the project root run:
-
-```bash
-platformio run
-platformio run -t upload
-```
-
-If your CYD board uses a different serial port or board ID, update `platformio.ini` accordingly before flashing.
-
-### First startup
-
-1. Insert an SD card and power on the board.
-2. Verify the SD card initializes and the touchscreen displays the home menu.
-3. Optionally connect the DS3231 RTC and enable it in Settings.
-4. Use the touchscreen Settings menu to connect to WiFi and sync NTP time.
-5. Use the touchscreen interface to:
-   - view a scale
-   - tare the load cell
-   - calibrate with a known mass and on-screen number keyboard
-   - start thrust capture
-   - browse stored `.eng` files and review thrust curves
-
-## File Format
-
-Saved files use `.eng` extension and include metadata:
-
-- `timestamp`
-- `total_impulse_Ns`
-- `burn_time_s`
-- `max_force_N`
-- `delay_s`
-- `rating`
-- `data_ms,force_N`
-
-The filename includes the capture timestamp.
-
-## Notes
-
-- Make sure the HX711 and load cell are powered from the same 3.3V supply as the ESP32.
-- If the RTC is not connected, filenames are created with a fallback timestamp string.
-- Settings are saved to `settings.ini` on the SD card when present.
-- If no SD card is available, settings fall back to EEPROM storage.
-- No physical buttons are required; the system uses the touchscreen UI.
+- platformio.ini: PlatformIO environments and dependencies
+- src/main.cpp: Main firmware
+- README.md: Wiring and setup notes
