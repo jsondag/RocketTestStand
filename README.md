@@ -5,9 +5,11 @@ Firmware for an ESP32 CYD-based rocket motor test stand with touchscreen UI, on-
 Main features:
 - Scale mode with tare and calibration
 - Thrust capture with auto start/end logic and ejection delay analysis
-- Graph and characterization results after each run
-- SD card logging in .eng-style format
-- Optional DS3231 RTC and WiFi/NTP time sync
+- Graph and characterization results after each run, with NAR/TRA letter rating (1/4A through Z) computed from total impulse
+- File browser for saved curves with on-device review (graph + classification + delete)
+- SD card logging in RASP `.eng` format with date-stamped filenames
+- WiFi auto-connect and non-blocking NTP time sync at boot; worldwide timezone presets (POSIX TZ rules including DST)
+- Settings persisted to both EEPROM and SD `/settings.ini` (SD wins on load)
 
 ## Important ADC Selection Note
 
@@ -83,6 +85,8 @@ Load cell wiring for ADS1220 depends on breakout labels, but differential signal
 - I2C_SDA -> GPIO 18
 - I2C_SCL -> GPIO 19
 
+The DS3231 is not currently used; time is obtained from NTP after WiFi connects.
+
 ## Safety and Wiring Guidance
 
 - Do not wire both ADC modules to the shared control/data pins at the same time unless you have proper hardware isolation.
@@ -98,8 +102,23 @@ From project root:
 
 Default PlatformIO environment is esp32dev.
 
+## Settings
+
+Configurable via on-device Settings → Parameters:
+
+- Rotate 180° (display orientation)
+- Start Threshold (N) — capture trigger
+- Pre / Post Capture (s)
+- End Holdoff (ms)
+- Ejection Wait (s) — set 0 to disable
+- Ejection Detect (N)
+- Max Burn (s)
+- Time Zone — worldwide presets with DST rules
+
+WiFi credentials are entered via Settings → WiFi (scan + on-screen keyboard) and persist to SD `/settings.ini`. On boot, if an SSID is saved the device auto-connects in the background and updates the home-screen clock once NTP returns valid time. Boot is never delayed waiting on the network.
+
 ## Project Files
 
-- platformio.ini: PlatformIO environments and dependencies
-- src/main.cpp: Main firmware
-- README.md: Wiring and setup notes
+- `platformio.ini` — PlatformIO environment and dependencies
+- `src/main.cpp` — Firmware (UI, capture pipeline, SD/EEPROM persistence, WiFi/NTP, file review)
+- `README.md` — Wiring and setup notes
