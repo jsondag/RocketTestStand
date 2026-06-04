@@ -405,7 +405,7 @@ void runCaptureRoutine() {
         : "P";
       file.printf("; Captured by RocketTestStand\n");
       char humanStamp[32];
-      if (formatLocalTime(humanStamp, sizeof(humanStamp), "%Y-%m-%d %H:%M:%S")) {
+      if (formatLocalTime(humanStamp, sizeof(humanStamp), "%Y-%m-%d %H:%M:%S %Z")) {
         file.printf("; Recorded %s\n", humanStamp);
       }
       file.printf("%s 0 0 %s 0 0 UNK\n", rating.c_str(), delays.c_str());

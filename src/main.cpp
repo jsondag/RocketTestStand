@@ -238,6 +238,7 @@ void setup() {
     wifiAutoState = WIFI_AUTO_CONNECTING;
     wifiAutoStateMs = millis();
   }
+  beginWebServer();
 }
 
 void loop() {
@@ -646,16 +647,14 @@ void loop() {
 
   if (currentScreen == SCREEN_HOME) {
     static unsigned long lastClockMs = 0;
-    static bool lastClockShown = false;
     unsigned long now = millis();
     if (now - lastClockMs > 1000UL) {
-      if (timeAvailable != lastClockShown || timeAvailable) {
-        drawHomeClock();
-        lastClockShown = timeAvailable;
-      }
+      drawHomeClock();
       lastClockMs = now;
     }
   }
+
+  handleWebServer();
 
   // Background WiFi/NTP state machine.
   {

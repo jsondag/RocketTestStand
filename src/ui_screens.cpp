@@ -2,15 +2,24 @@
 
 void drawHomeClock() {
   tft.fillRect(0, 222, tft.width(), 18, ILI9341_BLACK);
-  if (!timeAvailable) return;
-  char buf[24];
-  if (!formatLocalTime(buf, sizeof(buf), "%Y-%m-%d  %H:%M:%S")) return;
+  char buf[32] = "";
+  if (timeAvailable) {
+    formatLocalTime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S");
+  } else {
+    strcpy(buf, "Waiting for time");
+  }
+  String ipText = WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String("WiFi offline");
+  String line = String(buf);
+  if (line.length() > 0) {
+    line += " ";
+  }
+  line += ipText;
   tft.setTextColor(ILI9341_CYAN);
-  tft.setTextSize(2);
-  int textW = (int)strlen(buf) * 12;
+  tft.setTextSize(1);
+  int textW = (int)line.length() * 6;
   int x = max(0, (tft.width() - textW) / 2);
   tft.setCursor(x, 224);
-  tft.print(buf);
+  tft.print(line);
 }
 
 void drawHomeScreen() {

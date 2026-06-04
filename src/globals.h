@@ -213,6 +213,8 @@ void scanWifiNetworks();
 bool connectWiFi(const String& ssid, const String& password);
 bool syncTimeWithNTP();
 bool formatLocalTime(char* buf, size_t bufLen, const char* fmt);
+void beginWebServer();
+void handleWebServer();
 
 // --- ui_draw.cpp ---
 bool touchPressed();

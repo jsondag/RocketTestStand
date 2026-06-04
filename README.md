@@ -8,6 +8,7 @@ Main features:
 - Graph and characterization results after each run, with NAR/TRA letter rating computed from total impulse
 - File browser for saved curves with on-device review (graph + classification + delete)
 - SD card logging in RASP `.eng` format with date-stamped filenames
+- SD card files hosted over wifi. Browse to IP address displayed on home screen.
 - WiFi auto-connect and NTP time sync at boot; worldwide timezone presets.
 - Settings persisted to both EEPROM and SD `/settings.ini` (SD wins on load)
 
