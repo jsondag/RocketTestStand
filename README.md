@@ -11,6 +11,8 @@ Main features:
 - WiFi auto-connect and NTP time sync at boot; worldwide timezone presets.
 - Settings persisted to both EEPROM and SD `/settings.ini` (SD wins on load)
 
+[![Video Demo](https://img.youtube.com/vi/MpfrThASmfk/hqdefault.jpg)](https://youtube.com/shorts/MpfrThASmfk?si=fK43k_C76Hq3I9Sh)
+
 ## ADC Selection
 
 In src/config.h:
@@ -82,7 +84,18 @@ Configurable via on-device Settings → Parameters:
 - Max Burn (s) - Maximum allowable burn time.
 - Time Zone - worldwide presets with DST rules
 
-WiFi credentials are entered via Settings → WiFi (scan + on-screen keyboard) and persist to SD `/settings.ini`. On boot, if an SSID is saved the device auto-connects in the background and updates the home-screen clock once NTP returns valid time. Boot is never delayed waiting on the network.
+WiFi credentials are entered via Settings → WiFi (scan + on-screen keyboard) and persist to SD `/settings.ini`. They may also be saved to the SD card directly. On boot, if an SSID is saved the device auto-connects in the background and updates the home-screen clock once NTP returns valid time. Boot is never delayed waiting on the network.
+
+## Calibration
+Calibration is mandatory, and should be done periodically, or any time a change is made. Each load cell, and ADC combination is unique. The default calibration factor is for my specific ADC chip, and 50KG load cell.
+
+To calibrate, go to Settings -> Calibrate.
+- With no load on the cell, press `Tare`. 
+- Press `Weight`, enter the known weight of a and object.
+- Place the weighed object on the load cell.
+- Allow the Mass value to settle, and press `calibrate`.
+
+Calibration factor will be shown on screen, and saved to EEPROM, and SD card.
 
 ## Project Files
 
