@@ -11,6 +11,7 @@ Main features:
 - WiFi auto-connect and NTP time sync at boot; worldwide timezone presets.
 - Settings persisted to both EEPROM and SD `/settings.ini` (SD wins on load)
 
+### Video demo
 [![Video Demo](https://img.youtube.com/vi/MpfrThASmfk/hqdefault.jpg)](https://youtube.com/shorts/MpfrThASmfk?si=fK43k_C76Hq3I9Sh)
 
 ## ADC Selection
