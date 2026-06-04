@@ -93,7 +93,7 @@ Calibration is mandatory, and should be done periodically, or any time a change 
 
 To calibrate, go to Settings -> Calibrate.
 - With no load on the cell, press `Tare`. 
-- Press `Weight`, enter the known weight of a and object.
+- Press `Weight`, enter the known weight of an object.
 - Place the weighed object on the load cell.
 - Allow the Mass value to settle, and press `calibrate`.
 
