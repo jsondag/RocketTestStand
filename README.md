@@ -37,7 +37,7 @@ Load cell wires to HX711 (typical 4-wire cell):
 - Green -> A+ (Signal+)
 - White -> A- (Signal-)
 
-### ADC Option 2: ADS1220 (bit-banged SPI)
+### ADC Option 2: ADS1220 (Preferred)
 
 - ADS1220_CS -> GPIO 17
 - ADS1220_SCLK -> GPIO 22
