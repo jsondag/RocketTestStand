@@ -76,7 +76,7 @@ static_assert(sizeof(EepromSettings) <= EEPROM_SIZE,
 
 // --- Application state ---
 AppSettings settings;
-uint8_t activeScaleBackend = SCALE_BACKEND_AUTO;
+uint8_t activeScaleBackend = LOADCELL_ADC;
 bool sdPresent = false;
 bool rtcAvailable = false;
 volatile bool timeAvailable = false;
@@ -103,7 +103,7 @@ String statusLine;
 String loadedFileName;
 String loadedFileRating;
 int tzPickerScroll = 0;
-String savedFileList[16];
+String savedFileList[SAVED_FILE_MAX];
 int savedFileCount = 0;
 int savedFileScroll = 0;
 
@@ -288,7 +288,6 @@ void loop() {
         if (hitTest(touch, 12, 180, 140, 44)) {
           drawFooter("Taring... hold still");
           scaleTareSensor();
-          offsetTare = readUnitsAverage(10);
 
           scaleTrendHead = 0;
           scaleTrendCount = 0;
@@ -305,7 +304,37 @@ void loop() {
         }
         break;
       case SCREEN_CAPTURE:
-        if (hitTest(touch, 90, 150, 140, 64)) {
+        if (hitTest(touch, 214, 44, 90, 28)) {
+          String entered = inputTextKeyboard("Start threshold N", String(settings.startThreshold, 1), false, true);
+          float v = entered.toFloat();
+          if (v > 0.0f && v < 2000.0f) {
+            settings.startThreshold = v;
+            saveSettings();
+            drawCaptureScreen();
+          } else {
+            drawMessage("Invalid start threshold");
+          }
+        } else if (hitTest(touch, 214, 80, 90, 28)) {
+          String entered = inputTextKeyboard("Ejection wait sec", String(settings.ejectionWaitSeconds, 1), false, true);
+          float v = entered.toFloat();
+          if (v >= 0.0f && v <= 15.0f) {
+            settings.ejectionWaitSeconds = v;
+            saveSettings();
+            drawCaptureScreen();
+          } else {
+            drawMessage("Use 0..15.0 s (0=off)");
+          }
+        } else if (hitTest(touch, 214, 116, 90, 28)) {
+          String entered = inputTextKeyboard("Eject detect N", String(settings.ejectionDetectForceN, 1), false, true);
+          float v = entered.toFloat();
+          if (v >= 0.2f && v <= 30.0f) {
+            settings.ejectionDetectForceN = v;
+            saveSettings();
+            drawCaptureScreen();
+          } else {
+            drawMessage("Use 0.2..30.0 N");
+          }
+        } else if (hitTest(touch, 90, 150, 140, 60)) {
           runCaptureRoutine();
         }
         break;
@@ -446,26 +475,6 @@ void loop() {
             drawMessage("Invalid start threshold");
           }
         } else if (hitTest(touch, 220, paramRowY(2) + 5, 84, 20) && paramRowVisible(2)) {
-          String entered = inputTextKeyboard("Pre capture sec", String((float)settings.preCaptureMs / 1000.0f, 1), false, true);
-          float v = entered.toFloat();
-          if (v >= 0.10f && v <= 12.00f) {
-            settings.preCaptureMs = (uint16_t)roundf(v * 1000.0f);
-            saveSettings();
-            drawParametersScreen();
-          } else {
-            drawMessage("Use 0.10..12.00 s");
-          }
-        } else if (hitTest(touch, 220, paramRowY(3) + 5, 84, 20) && paramRowVisible(3)) {
-          String entered = inputTextKeyboard("Post capture sec", String((float)settings.postCaptureMs / 1000.0f, 1), false, true);
-          float v = entered.toFloat();
-          if (v >= 0.10f && v <= 10.00f) {
-            settings.postCaptureMs = (uint16_t)roundf(v * 1000.0f);
-            saveSettings();
-            drawParametersScreen();
-          } else {
-            drawMessage("Use 0.10..10.00 s");
-          }
-        } else if (hitTest(touch, 220, paramRowY(4) + 5, 84, 20) && paramRowVisible(4)) {
           String entered = inputTextKeyboard("End holdoff ms", String(settings.thrustEndHoldoffMs), false, false);
           int v = entered.toInt();
           if (v >= 20 && v <= 500) {
@@ -475,7 +484,7 @@ void loop() {
           } else {
             drawMessage("Use 20..500 ms");
           }
-        } else if (hitTest(touch, 220, paramRowY(5) + 5, 84, 20) && paramRowVisible(5)) {
+        } else if (hitTest(touch, 220, paramRowY(3) + 5, 84, 20) && paramRowVisible(3)) {
           String entered = inputTextKeyboard("Ejection wait sec", String(settings.ejectionWaitSeconds, 1), false, true);
           float v = entered.toFloat();
           if (v >= 0.0f && v <= 15.0f) {
@@ -485,7 +494,7 @@ void loop() {
           } else {
             drawMessage("Use 0..15.0 s (0=off)");
           }
-        } else if (hitTest(touch, 220, paramRowY(6) + 5, 84, 20) && paramRowVisible(6)) {
+        } else if (hitTest(touch, 220, paramRowY(4) + 5, 84, 20) && paramRowVisible(4)) {
           String entered = inputTextKeyboard("Eject detect N", String(settings.ejectionDetectForceN, 1), false, true);
           float v = entered.toFloat();
           if (v >= 0.2f && v <= 30.0f) {
@@ -495,7 +504,7 @@ void loop() {
           } else {
             drawMessage("Use 0.2..30.0 N");
           }
-        } else if (hitTest(touch, 220, paramRowY(7) + 5, 84, 20) && paramRowVisible(7)) {
+        } else if (hitTest(touch, 220, paramRowY(5) + 5, 84, 20) && paramRowVisible(5)) {
           String entered = inputTextKeyboard("Max burn sec", String((float)settings.maxBurnMs / 1000.0f, 1), false, true);
           float v = entered.toFloat();
           if (v >= 0.5f && v <= 30.0f) {
@@ -505,7 +514,12 @@ void loop() {
           } else {
             drawMessage("Use 0.5..30.0 s");
           }
-        } else if (hitTest(touch, 170, paramRowY(8) + 5, 134, 20) && paramRowVisible(8)) {
+        } else if (hitTest(touch, 210, paramRowY(6) + 4, 22, 22) && paramRowVisible(6)) {
+          settings.fullCaptureEnabled = (settings.fullCaptureEnabled == 1) ? 0 : 1;
+          saveSettings();
+          drawParametersScreen();
+          drawMessage(String("Full Capture ") + (settings.fullCaptureEnabled ? "ON" : "OFF"));
+        } else if (hitTest(touch, 170, paramRowY(7) + 5, 134, 20) && paramRowVisible(7)) {
           tzPickerScroll = max(0, settings.timezoneIndex - 2);
           int maxScroll = max(0, kTimezoneCount - 5);
           if (tzPickerScroll > maxScroll) tzPickerScroll = maxScroll;
@@ -568,7 +582,6 @@ void loop() {
         if (hitTest(touch, 16, 122, 92, 34)) {
           drawMessage("Taring (1.5s average)...");
           scaleTareSensor();
-          offsetTare = readUnitsAverage(20);
           drawMessage("Tare complete.");
           drawCalibrationScreen(0.0f);
         } else if (hitTest(touch, 16, 164, 140, 34)) {
@@ -582,7 +595,8 @@ void loop() {
               break;
             }
             float kg = target / 1000.0f;
-            long rawAvg = readRawAverage(20, 40);
+            drawMessage("Calibrating: averaging samples...");
+            long rawAvg = captureTimedBaselineRaw(TARE_AVERAGE_DURATION_MS, 20);
             long rawDelta = rawAvg - getSensorOffsetRaw();
             if (kg > 0.0f && rawDelta != 0) {
               float prevFactor = settings.calibrationFactor;
@@ -627,7 +641,7 @@ void loop() {
     static float calMassFiltered = 0.0f;
     unsigned long now = millis();
     if (now - lastCalUiMs > 80) {
-      float measured = netLoadKgFromUnits(readUnitsAverage(CAL_UI_RAW_SAMPLES)) * 1000.0f;
+      float measured = netLoadKgFromUnits(readUnitsAverage(SCALE_UI_RAW_SAMPLES)) * 1000.0f;
       if (!calMassInitialized) {
         calMassFiltered = measured;
         calMassInitialized = true;

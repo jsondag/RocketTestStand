@@ -3,7 +3,6 @@
 // Hardware pin map and tunable defaults.
 
 // --- ADC backend selection ---
-#define SCALE_BACKEND_AUTO     0
 #define SCALE_BACKEND_HX711    1
 #define SCALE_BACKEND_ADS1220  2
 
@@ -48,10 +47,10 @@
 
 #define NTP_SERVER         "pool.ntp.org"
 #define SETTINGS_FILENAME  "/settings.ini"
-#define EEPROM_MAGIC       0x52415353
+#define EEPROM_MAGIC       0x52415354
 #define EEPROM_SIZE        1024
 
-#define DEFAULT_CAL_FACTOR                   -67015.0f
+#define DEFAULT_CAL_FACTOR                   -67668.9f
 #define MIN_REASONABLE_CAL_FACTOR_ABS_HX711  50000.0f
 #define MIN_REASONABLE_CAL_FACTOR_ABS_ADS1220 100.0f
 
@@ -60,9 +59,10 @@
 #define ADS1220_SAMPLE_RATE_SPS   600
 
 // Capture / detection defaults.
-#define DEFAULT_START_THRESHOLD       0.5f
-#define DEFAULT_PRE_CAPTURE_MS        200
-#define DEFAULT_POST_CAPTURE_MS       200
+#define DEFAULT_START_THRESHOLD       2.0f
+#define CAPTURE_PRE_MS                150
+#define CAPTURE_POST_MS               200
+
 #define DEFAULT_EJECTION_WAIT_S       10.0f
 #define DEFAULT_EJECTION_DETECT_N     1.0f
 #define DEFAULT_THRUST_END_HOLDOFF_MS 90
@@ -72,15 +72,16 @@
 #define LOAD_POLARITY            -1.0f
 #define TARE_AVERAGE_DURATION_MS 1500UL
 #define SCALE_UI_RAW_SAMPLES     8
-#define CAL_UI_RAW_SAMPLES       6
 #define DEBUG_FEATURES_DEFAULT   0
 
 // Parameters screen layout.
 #define PARAMS_ROW_H         34
 #define PARAMS_CONTENT_TOP   30
-#define PARAMS_ROWS          9
+#define PARAMS_ROWS          8
 #define PARAMS_ROWS_PER_PAGE 5
 #define PARAMS_PAGE_COUNT    ((PARAMS_ROWS + PARAMS_ROWS_PER_PAGE - 1) / PARAMS_ROWS_PER_PAGE)
+
+#define SAVED_FILE_MAX       128
 
 #define paramRowOnPage(n)   (paramsPage == ((n) / PARAMS_ROWS_PER_PAGE))
 #define paramRowY(n)        (PARAMS_CONTENT_TOP + ((n) % PARAMS_ROWS_PER_PAGE) * PARAMS_ROW_H)

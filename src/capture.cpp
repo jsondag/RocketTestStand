@@ -6,16 +6,20 @@ void runCaptureRoutine() {
   tft.drawRect(8, 32, tft.width() - 16, 160, ILI9341_WHITE);
   tft.setTextColor(ILI9341_WHITE);
   tft.setTextSize(2);
+  tft.fillRect(16, 206, 300, 16, ILI9341_BLACK);
   tft.setCursor(16, 208);
-  tft.print("Waiting for thrust...");
+  tft.print("Taring... hold still");
 
   scaleTareSensor();
-  offsetTare = readUnitsAverage(20);
+
+  tft.fillRect(16, 206, 300, 16, ILI9341_BLACK);
+  tft.setCursor(16, 208);
+  tft.print("Waiting for thrust...");
 
   sampleCount = 0;
   const unsigned long sampleIntervalUs = captureSampleIntervalUs();
   const unsigned long sampleIntervalMs = captureSampleIntervalMsRoundedUp();
-  int preCapSamples = (int)((settings.preCaptureMs + sampleIntervalMs - 1) / sampleIntervalMs);
+  int preCapSamples = (int)((CAPTURE_PRE_MS + sampleIntervalMs - 1) / sampleIntervalMs);
   preCapSamples = constrain(preCapSamples, 8, CAPTURE_MAX_SAMPLES / 2);
 
   enum CapturePhase { WAIT_THRUST, MAIN_THRUST, EJECTION_WAIT };
@@ -60,9 +64,7 @@ void runCaptureRoutine() {
   unsigned long lastSampleMs = waitStartMs;
   unsigned long maxCaptureRuntimeMs =
     20000UL +
-    (unsigned long)settings.maxBurnMs +
-    (unsigned long)settings.postCaptureMs +
-    (unsigned long)(settings.ejectionWaitSeconds * 1000.0f)
+    (unsigned long)settings.maxBurnMs
     + 5000UL;
 
   (void)lastAbove; (void)thrustQuietSinceMs; (void)quietSinceMs; (void)maxForceAll;
@@ -155,7 +157,6 @@ void runCaptureRoutine() {
         mainEndMs = nowMs - captureBaseAbsMs;
         maxCaptureRuntimeMs = (nowMs - routineStartMs) +
           (unsigned long)settings.maxBurnMs +
-          (unsigned long)settings.postCaptureMs +
           (unsigned long)(settings.ejectionWaitSeconds * 1000.0f) +
           5000UL;
         tft.fillRect(16, 206, 300, 16, ILI9341_BLACK);
@@ -177,6 +178,8 @@ void runCaptureRoutine() {
       if (phase == MAIN_THRUST) {
         unsigned long storedBurnMs = (nowMs >= captureStart) ? (nowMs - captureStart) : 0;
         shouldStoreSample = storedBurnMs <= (unsigned long)settings.maxBurnMs;
+      } else if (phase == EJECTION_WAIT && settings.fullCaptureEnabled == 1) {
+        shouldStoreSample = true;
       }
       if (shouldStoreSample) {
         accumForceSum += f;
@@ -261,7 +264,7 @@ void runCaptureRoutine() {
         if (!foundEject && ejectionArmed && riseFromValley >= settings.ejectionDetectForceN) {
           foundEject = true;
           ejectTimeMs = sampleTime;
-          unsigned long settleDeadline = nowMs + (unsigned long)settings.postCaptureMs;
+          unsigned long settleDeadline = nowMs + (unsigned long)CAPTURE_POST_MS;
           if (settleDeadline < ejectionDeadlineMs) {
             ejectionDeadlineMs = settleDeadline;
           }
@@ -297,6 +300,16 @@ void runCaptureRoutine() {
         }
       }
     }
+  }
+
+  if (accumCount > 0 && sampleCount < CAPTURE_MAX_SAMPLES) {
+    samples[sampleCount++] = {
+      (unsigned long)(accumTimeSum / (unsigned long)accumCount),
+      accumForceSum / (float)accumCount
+    };
+    accumForceSum = 0.0f;
+    accumTimeSum = 0;
+    accumCount = 0;
   }
 
   if (mainEndMs == 0 && sampleCount > 0) {
@@ -415,24 +428,112 @@ void runCaptureRoutine() {
       while (firstIdx < sampleCount - 1 && (long)samples[firstIdx].timeMs < originMs) firstIdx++;
       long burnEndMs = (long)thrustStartMs + (long)(burnTime * 1000.0f + 0.5f);
       int lastIdx = sampleCount - 1;
-      while (lastIdx > firstIdx && (long)samples[lastIdx].timeMs > burnEndMs + 50) lastIdx--;
-      int windowCount = lastIdx - firstIdx + 1;
-      const int maxPoints = 200;
-      int bucketSize = max(1, windowCount / maxPoints);
-      for (int i = firstIdx; i <= lastIdx; ) {
-        int bucketEnd = min(i + bucketSize, lastIdx + 1);
-        float sumT = 0, sumF = 0;
-        int n = 0;
-        for (int j = i; j < bucketEnd; j++) {
-          sumT += (long)samples[j].timeMs - originMs;
-          sumF += max(0.0f, samples[j].forceN);
-          n++;
+      const float zeroEpsilon = 0.0001f;
+      const float finalZeroStepSec = max(0.001f, (float)sampleIntervalMs / 1000.0f);
+      if (settings.fullCaptureEnabled == 1) {
+        int lastPositiveSample = -1;
+        for (int i = firstIdx; i <= lastIdx; i++) {
+          if (max(0.0f, samples[i].forceN) > zeroEpsilon) {
+            lastPositiveSample = i;
+          }
         }
-        file.printf("   %.4f %.4f\n", (sumT / n) / 1000.0f, sumF / n);
-        i = bucketEnd;
+
+        if (lastPositiveSample < 0) {
+          float finalT = max(0.0f, ((long)samples[lastIdx].timeMs - originMs) / 1000.0f) + finalZeroStepSec;
+          file.printf("   %.4f 0.0\n", finalT);
+        } else {
+          bool wrotePositive = false;
+          bool zeroPending = false;
+          float pendingZeroTime = 0.0f;
+          float lastPositiveTime = 0.0f;
+          for (int i = firstIdx; i <= lastPositiveSample; i++) {
+            float timeSec = max(0.0f, ((long)samples[i].timeMs - originMs) / 1000.0f);
+            float forceN = max(0.0f, samples[i].forceN);
+            if (forceN > zeroEpsilon) {
+              if (zeroPending) {
+                file.printf("   %.4f 0.0\n", pendingZeroTime);
+                zeroPending = false;
+              }
+              file.printf("   %.4f %.4f\n", timeSec, forceN);
+              wrotePositive = true;
+              lastPositiveTime = timeSec;
+            } else if (wrotePositive && !zeroPending) {
+              pendingZeroTime = timeSec;
+              zeroPending = true;
+            }
+          }
+
+          float finalT = lastPositiveTime + finalZeroStepSec;
+          if (zeroPending) {
+            finalT = max(finalT, pendingZeroTime + finalZeroStepSec);
+          }
+          file.printf("   %.4f 0.0\n", finalT);
+        }
+      } else {
+        while (lastIdx > firstIdx && (long)samples[lastIdx].timeMs > burnEndMs + 50) lastIdx--;
+        int windowCount = lastIdx - firstIdx + 1;
+        const int maxPoints = 200;
+        int bucketSize = max(1, windowCount / maxPoints);
+        float pointT[256];
+        float pointF[256];
+        int pointCount = 0;
+        for (int i = firstIdx; i <= lastIdx; ) {
+          int bucketEnd = min(i + bucketSize, lastIdx + 1);
+          float sumT = 0, sumF = 0;
+          int n = 0;
+          for (int j = i; j < bucketEnd; j++) {
+            sumT += (long)samples[j].timeMs - originMs;
+            sumF += max(0.0f, samples[j].forceN);
+            n++;
+          }
+          float avgTimeSec = (sumT / n) / 1000.0f;
+          float avgF = sumF / n;
+          if (pointCount < (int)(sizeof(pointT) / sizeof(pointT[0]))) {
+            pointT[pointCount] = avgTimeSec;
+            pointF[pointCount] = avgF;
+            pointCount++;
+          }
+          i = bucketEnd;
+        }
+
+        int lastPositive = -1;
+        for (int i = 0; i < pointCount; i++) {
+          if (pointF[i] > zeroEpsilon) {
+            lastPositive = i;
+          }
+        }
+
+        if (pointCount == 0) {
+          file.printf("   %.4f 0.0\n", finalZeroStepSec);
+        } else if (lastPositive < 0) {
+          file.printf("   %.4f 0.0\n", pointT[pointCount - 1] + finalZeroStepSec);
+        } else {
+          bool wrotePositive = false;
+          bool zeroPending = false;
+          float pendingZeroTime = 0.0f;
+          for (int i = 0; i <= lastPositive; i++) {
+            if (pointF[i] > zeroEpsilon) {
+              if (zeroPending) {
+                file.printf("   %.4f 0.0\n", pendingZeroTime);
+                zeroPending = false;
+              }
+              file.printf("   %.4f %.4f\n", pointT[i], pointF[i]);
+              wrotePositive = true;
+            } else if (wrotePositive && !zeroPending) {
+              pendingZeroTime = pointT[i];
+              zeroPending = true;
+            }
+          }
+
+          float finalT = pointT[lastPositive] + finalZeroStepSec;
+          if (zeroPending) {
+            finalT = max(finalT, pendingZeroTime + finalZeroStepSec);
+          } else if (lastPositive + 1 < pointCount) {
+            finalT = max(finalT, pointT[lastPositive + 1] + finalZeroStepSec);
+          }
+          file.printf("   %.4f 0.0\n", finalT);
+        }
       }
-      float finalT = ((long)thrustStartMs - originMs + (long)(burnTime * 1000.0f + 0.5f)) / 1000.0f;
-      file.printf("   %.4f 0.0\n", finalT);
       file.printf(";\n");
       file.close();
       saveStatus = "Saved " + filename;

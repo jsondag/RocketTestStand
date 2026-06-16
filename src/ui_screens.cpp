@@ -94,37 +94,47 @@ void drawScaleScreen() {
   drawSmallButton(168, 180, 140, 44, "Capture", ILI9341_GREEN);
   drawFooter("Taring... hold still");
   scaleTareSensor();
-  offsetTare = readUnitsAverage(20);
   drawFooter("Tare complete. Capture marks graph.");
 }
 
 void drawCaptureScreen() {
   drawHeader("Capture");
   drawHamburger();
+  const int row1Y = 44;
+  const int row2Y = 80;
+  const int row3Y = 116;
+  const int valueW = 90;
+  const int valueH = 28;
+  const int valueX = 214;
   tft.setTextSize(2);
   tft.setTextColor(ILI9341_WHITE);
   tft.setCursor(16, 48);
   tft.print("Start threshold: ");
+  tft.fillRoundRect(valueX, row1Y, valueW, valueH, 4, ILI9341_DARKGREY);
+  tft.drawRoundRect(valueX, row1Y, valueW, valueH, 4, ILI9341_WHITE);
+  tft.setCursor(220, 48);
   tft.print(settings.startThreshold, 2);
   tft.print(" N");
-  tft.setCursor(16, 76);
-  tft.print("Post capture: ");
-  tft.print((float)settings.postCaptureMs / 1000.0f, 1);
-  tft.print(" s");
-  tft.setCursor(16, 104);
+  tft.setCursor(16, row2Y + 4);
   tft.print("Eject wait: ");
+  tft.fillRoundRect(valueX, row2Y, valueW, valueH, 4, ILI9341_DARKGREY);
+  tft.drawRoundRect(valueX, row2Y, valueW, valueH, 4, ILI9341_WHITE);
+  tft.setCursor(220, row2Y + 4);
   if (settings.ejectionWaitSeconds <= 0.0f) {
     tft.print("Off");
   } else {
     tft.print(settings.ejectionWaitSeconds, 1);
     tft.print(" s");
   }
-  tft.setCursor(16, 132);
+  tft.setCursor(16, row3Y + 4);
   tft.print("Eject detect: ");
+  tft.fillRoundRect(valueX, row3Y, valueW, valueH, 4, ILI9341_DARKGREY);
+  tft.drawRoundRect(valueX, row3Y, valueW, valueH, 4, ILI9341_WHITE);
+  tft.setCursor(220, row3Y + 4);
   tft.print(settings.ejectionDetectForceN, 1);
   tft.print(" N");
-  drawButton(90, 150, 140, 64, "Start");
-  drawFooter("Main thrust metrics ignore ejection spike.");
+  drawSmallButton(90, 150, 140, 60, "START", ILI9341_RED);
+  drawFooter("Tap param to edit, then START.");
 }
 
 void drawReviewScreen() {
@@ -224,26 +234,6 @@ void drawParametersScreen() {
   ry = paramRowY(2);
   if (paramRowVisible(2)) {
     tft.setCursor(16, ry + 7);
-    tft.print("Pre Capture (S):");
-    tft.fillRoundRect(220, ry + 5, 84, 20, 4, ILI9341_DARKGREY);
-    tft.drawRoundRect(220, ry + 5, 84, 20, 4, ILI9341_WHITE);
-    tft.setCursor(226, ry + 7);
-    tft.print((float)settings.preCaptureMs / 1000.0f, 1);
-  }
-
-  ry = paramRowY(3);
-  if (paramRowVisible(3)) {
-    tft.setCursor(16, ry + 7);
-    tft.print("Post Capture (S):");
-    tft.fillRoundRect(220, ry + 5, 84, 20, 4, ILI9341_DARKGREY);
-    tft.drawRoundRect(220, ry + 5, 84, 20, 4, ILI9341_WHITE);
-    tft.setCursor(226, ry + 7);
-    tft.print((float)settings.postCaptureMs / 1000.0f, 1);
-  }
-
-  ry = paramRowY(4);
-  if (paramRowVisible(4)) {
-    tft.setCursor(16, ry + 7);
     tft.print("End Holdoff (ms):");
     tft.fillRoundRect(220, ry + 5, 84, 20, 4, ILI9341_DARKGREY);
     tft.drawRoundRect(220, ry + 5, 84, 20, 4, ILI9341_WHITE);
@@ -251,8 +241,8 @@ void drawParametersScreen() {
     tft.print(settings.thrustEndHoldoffMs);
   }
 
-  ry = paramRowY(5);
-  if (paramRowVisible(5)) {
+  ry = paramRowY(3);
+  if (paramRowVisible(3)) {
     tft.setCursor(16, ry + 7);
     tft.print("Eject wait (S):");
     tft.fillRoundRect(220, ry + 5, 84, 20, 4, ILI9341_DARKGREY);
@@ -261,8 +251,8 @@ void drawParametersScreen() {
     tft.print(settings.ejectionWaitSeconds, 1);
   }
 
-  ry = paramRowY(6);
-  if (paramRowVisible(6)) {
+  ry = paramRowY(4);
+  if (paramRowVisible(4)) {
     tft.setCursor(16, ry + 7);
     tft.print("Eject Detect (N):");
     tft.fillRoundRect(220, ry + 5, 84, 20, 4, ILI9341_DARKGREY);
@@ -271,8 +261,8 @@ void drawParametersScreen() {
     tft.print(settings.ejectionDetectForceN, 1);
   }
 
-  ry = paramRowY(7);
-  if (paramRowVisible(7)) {
+  ry = paramRowY(5);
+  if (paramRowVisible(5)) {
     tft.setCursor(16, ry + 7);
     tft.print("Max Burn (S):");
     tft.fillRoundRect(220, ry + 5, 84, 20, 4, ILI9341_DARKGREY);
@@ -281,8 +271,16 @@ void drawParametersScreen() {
     tft.print((float)settings.maxBurnMs / 1000.0f, 1);
   }
 
-  ry = paramRowY(8);
-  if (paramRowVisible(8)) {
+  ry = paramRowY(6);
+  if (paramRowVisible(6)) {
+    tft.setCursor(16, ry + 8);
+    tft.print("Full Capture");
+    tft.drawRect(210, ry + 4, 22, 22, ILI9341_WHITE);
+    if (settings.fullCaptureEnabled == 1) tft.fillRect(214, ry + 8, 14, 14, ILI9341_GREEN);
+  }
+
+  ry = paramRowY(7);
+  if (paramRowVisible(7)) {
     tft.setCursor(16, ry + 7);
     tft.print("Time Zone:");
     tft.fillRoundRect(170, ry + 5, 134, 20, 4, ILI9341_DARKGREY);

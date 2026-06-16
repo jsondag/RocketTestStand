@@ -6,10 +6,9 @@ void resetDefaultSettings() {
   settings.calibrationFactor     = DEFAULT_CAL_FACTOR;
   settings.rotate180             = 0;
   settings.startThreshold        = DEFAULT_START_THRESHOLD;
-  settings.preCaptureMs          = DEFAULT_PRE_CAPTURE_MS;
-  settings.postCaptureMs         = DEFAULT_POST_CAPTURE_MS;
   settings.ejectionWaitSeconds   = DEFAULT_EJECTION_WAIT_S;
   settings.ejectionDetectForceN  = DEFAULT_EJECTION_DETECT_N;
+  settings.fullCaptureEnabled    = 0;
   settings.thrustEndHoldoffMs    = DEFAULT_THRUST_END_HOLDOFF_MS;
   settings.maxBurnMs             = DEFAULT_MAX_BURN_MS;
   settings.timezoneIndex         = TZ_DEFAULT_INDEX;
@@ -33,10 +32,9 @@ bool saveSettingsToSD() {
   file.printf("calibrationFactor=%.6f\n", settings.calibrationFactor);
   file.printf("rotate180=%u\n", settings.rotate180);
   file.printf("startThreshold=%.3f\n", settings.startThreshold);
-  file.printf("preCaptureMs=%u\n", settings.preCaptureMs);
-  file.printf("postCaptureMs=%u\n", settings.postCaptureMs);
   file.printf("ejectionWaitSeconds=%.1f\n", settings.ejectionWaitSeconds);
   file.printf("ejectionDetectForceN=%.1f\n", settings.ejectionDetectForceN);
+  file.printf("fullCaptureEnabled=%u\n", settings.fullCaptureEnabled ? 1 : 0);
   file.printf("thrustEndHoldoffMs=%u\n", settings.thrustEndHoldoffMs);
   file.printf("maxBurnMs=%u\n", settings.maxBurnMs);
   file.printf("timezoneIndex=%d\n", (int)settings.timezoneIndex);
@@ -85,16 +83,14 @@ bool loadSettingsFromSD() {
       settings.rotate180 = (uint8_t)constrain(value.toInt(), 0, 1);
     } else if (key == "startThreshold") {
       settings.startThreshold = value.toFloat();
-    } else if (key == "preCaptureMs") {
-      settings.preCaptureMs = value.toInt();
-    } else if (key == "postCaptureMs") {
-      settings.postCaptureMs = value.toInt();
     } else if (key == "ejectionWaitSeconds") {
       float parsed = value.toFloat();
       settings.ejectionWaitSeconds = isfinite(parsed) ? constrain(parsed, 0.0f, 15.0f) : 10.0f;
     } else if (key == "ejectionDetectForceN") {
       float parsed = value.toFloat();
       settings.ejectionDetectForceN = isfinite(parsed) ? constrain(parsed, 0.2f, 30.0f) : 1.5f;
+    } else if (key == "fullCaptureEnabled") {
+      settings.fullCaptureEnabled = (uint8_t)((value.toInt() != 0) ? 1 : 0);
     } else if (key == "thrustEndHoldoffMs") {
       settings.thrustEndHoldoffMs = (uint16_t)constrain(value.toInt(), 20, 500);
     } else if (key == "maxBurnMs") {
@@ -140,6 +136,9 @@ bool loadSettings() {
   if (!isfinite(settings.ejectionDetectForceN) || settings.ejectionDetectForceN < 0.2f || settings.ejectionDetectForceN > 30.0f) {
     settings.ejectionDetectForceN = 1.5f;
   }
+  if (settings.fullCaptureEnabled > 1) {
+    settings.fullCaptureEnabled = 0;
+  }
   if (settings.thrustEndHoldoffMs < 20 || settings.thrustEndHoldoffMs > 500) {
     settings.thrustEndHoldoffMs = 90;
   }
@@ -167,7 +166,7 @@ void refreshSavedFileList() {
     if (!entry) break;
     if (!entry.isDirectory()) {
       String name = entry.name();
-      if (name.endsWith(".eng") && savedFileCount < 16) {
+      if (name.endsWith(".eng") && savedFileCount < SAVED_FILE_MAX) {
         savedFileList[savedFileCount++] = name;
       }
     }

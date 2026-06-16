@@ -257,19 +257,16 @@ bool initScale() {
   if (LOADCELL_ADC == SCALE_BACKEND_HX711) {
     if (initHx711Backend()) return true;
     Serial.println("HX711 not detected (fixed LOADCELL_ADC)");
-    activeScaleBackend = SCALE_BACKEND_AUTO;
     return false;
   }
 
   if (LOADCELL_ADC == SCALE_BACKEND_ADS1220) {
     if (initAds1220Backend()) return true;
     Serial.println("ADS1220 not detected (fixed LOADCELL_ADC)");
-    activeScaleBackend = SCALE_BACKEND_AUTO;
     return false;
   }
 
   Serial.println("Invalid LOADCELL_ADC value");
-  activeScaleBackend = SCALE_BACKEND_AUTO;
   return false;
 }
 
@@ -358,15 +355,15 @@ void scaleTareSensor() {
   if (activeScaleBackend == SCALE_BACKEND_HX711) {
     sensorOffsetRaw = captureTimedBaselineRaw(TARE_AVERAGE_DURATION_MS, 20);
     scale.set_offset(sensorOffsetRaw);
-    return;
-  }
-
-  if (activeScaleBackend == SCALE_BACKEND_ADS1220) {
+  } else if (activeScaleBackend == SCALE_BACKEND_ADS1220) {
     sensorOffsetRaw = captureTimedBaselineRaw(TARE_AVERAGE_DURATION_MS, 20);
-    return;
+  } else {
+    sensorOffsetRaw = captureTimedBaselineRaw(TARE_AVERAGE_DURATION_MS, 25);
   }
 
-  sensorOffsetRaw = captureTimedBaselineRaw(TARE_AVERAGE_DURATION_MS, 25);
+  // Match tare behavior everywhere: compute residual unit offset over the same time window.
+  long residualRaw = captureTimedBaselineRaw(TARE_AVERAGE_DURATION_MS, 20);
+  offsetTare = rawToUnits(residualRaw);
 }
 
 long getSensorOffsetRaw() {

@@ -19,10 +19,9 @@ struct AppSettings {
   float calibrationFactor;
   uint8_t rotate180;
   float startThreshold;
-  uint16_t preCaptureMs;
-  uint16_t postCaptureMs;
   float ejectionWaitSeconds;
   float ejectionDetectForceN;
+  uint8_t fullCaptureEnabled;
   uint16_t thrustEndHoldoffMs;
   uint16_t maxBurnMs;
   int8_t timezoneIndex;
